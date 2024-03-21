@@ -10,14 +10,15 @@ import databaseConfig from './config/database.config';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      load: [databaseConfig]
+      load: [databaseConfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => configService.get('databaseConfig')
+      useFactory: (configService: ConfigService) =>
+        configService.get('databaseConfig'),
     }),
-    UserModule
+    UserModule,
   ],
   controllers: [AppController],
   providers: [AppService],
