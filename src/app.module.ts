@@ -4,8 +4,12 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UserModule } from './user/user.module';
+import { UploadService } from './upload/upload.service';
+import { UploadController } from './upload/upload.controller';
 
 import databaseConfig from './config/database.config';
+// import { MulterModule } from '@nestjs/platform-express';
+// import path from 'path';
 
 @Module({
   imports: [
@@ -18,9 +22,22 @@ import databaseConfig from './config/database.config';
       useFactory: (configService: ConfigService) =>
         configService.get('databaseConfig'),
     }),
-    UserModule,
+
+    // MulterModule.registerAsync({
+    //   useFactory() {
+    //     return {
+    //       storage: {
+    //         destination: 'public',
+    //         filename: (req, file, cb) => {
+    //           cb(null, Date.now() + path.extname(file.originalname));
+    //         },
+    //       }
+    //     }
+    //   }
+    // })
+    // UserModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, UploadController],
+  providers: [AppService, UploadService],
 })
 export class AppModule {}
