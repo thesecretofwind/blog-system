@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <input type="file">
+    <h1>111</h1>
+    <button>download</button>
+    <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.5.0/axios.js"></script>
+    <script src="./xhr.js"></script>
+    <script src="./scripts/StreamSaver.js"></script>
+    <!-- <script src="./worker.js"></script> -->
+    <script>
+        const btn = document.querySelector('button');
+        btn.addEventListener('click', () => {
+            const fileStream = streamSaver.createWriteStream('4297f334-0289-4fc4-ada4-e1c1bbe2e5a3.zip');
+            fetch('/static/uploads/chunk/4297f334-0289-4fc4-ada4-e1c1bbe2e5a3.zip')
+            .then(res => {
+                console.log(res.headers.get('content-length'));
+                const readableStream = res.body;
+                if (window.WritableStream && readableStream.pipeTo) {
+                    return readableStream.pipeTo(fileStream)
+                    .then(() => console.log('完成写入'))
+                }
+
+                window.writer = fileStream.getWriter();
+                const reader = res.body.getReader();
+                const pump = () => reader.read()
+                    .then(res => res.done ? writer.close() : writer.write(res.value).then(pump));
+                pump();
+            })
+        })
+
+        ajax({
+            type: 'post',
+            url: '/xhr',
+            headers: {
+                contentType: 'application/json'
+            },
+            data: {
+                name: 'jack',
+                age: 23
+            },
+            success: function (res, xhr) {
+                console.log('成功了~~', res);
+            },
+
+            error: function (err, xhr) {
+                console.log('失败了~~~', err);
+            }
+        })
+        const input = document.querySelector('input');
+
+        input.onchange = (e) => {
+            // 获取文件
+            const file = e.target.files[0];
+            splitChunk(file)
+            // const worker = new Worker('./worker.js')
+            // worker.postMessage({file});
+            // worker.onmessage = (e) => {
+            //     console.log(e, '完成了');
+            // }
+        //     // 根据文件大小，划分一个个相同大小的chunk，默认大小为0.5M
+        //     const fileList = createChunk(file);
+
+        //     // 使用uuid作为文件名
+        //     const uuid = crypto.randomUUID();
+        //     // 封装切片请求
+        //     const uploadList = fileList.map((item, index) => {
+        //         const formData = new FormData();    // 定义上次的数据
+        //         formData.append('chunk', item); // 切片信息
+        //         formData.append('chunkname', `${uuid}@${index}`);    // 名字
+        //         formData.append('filename', uuid); // 文件名
+        //         return axios.post('/upload_file_chunk', formData);
+        //     });
+
+        //     Promise.all(uploadList).then(res => {
+        //         // 所有切片上传之成功后，再请求合并文件的指令
+        //         console.log('上传成功');
+        //         axios.post('/upload_chunk_end', {
+        //             filename: uuid, // 文件名
+        //             extname: file.name.split('.').slice(-1)[0] // 文件后缀
+        //         }).then((res) => {
+        //             console.log(res.data);
+        //         })
+        //     })
+        // }
+
+        // function createChunk(file, size = 100 * 1024) {
+        //     const result = [];
+        //     // 当前切片开始位置
+        //     let i = 0;
+        //     // file.size表示文件大小
+        //     while(i < file.size) {
+        //         result.push(file.slice(i, Math.min(i+size, file.size)));
+        //         i += size;
+        //     }
+
+        //     return result;
+        }
+
+        const CHUNK_SIZE = 5 * 1024 * 1024;
+        const THREAD_COUNT = 4;
+        const result = [];
+        let finishedThread = 0;
+
+        
+
+        function splitChunk(file) {
+            return new Promise( (resolve, reject) => {
+                // 根据文件大小，划分总chunks数量
+                const totalchunks = Math.ceil(file.size / CHUNK_SIZE);
+                // 计算每个worker需要处理的chunks数量
+                const workerChunks = Math.ceil(totalchunks / THREAD_COUNT);
+                const uuid = crypto.randomUUID();
+                let startIndex = 0; 
+                // 每个worker处理的chunks块，需要按照顺序
+                for (let i = 0; i < THREAD_COUNT; i++) {
+                    // console.log(startIndex);
+                    const startIndex = i * workerChunks;
+                    const endIndex = Math.min(startIndex + workerChunks, file.size);
+                    const worker = new Worker('./worker.js');
+                    worker.postMessage({
+                        file,
+                        CHUNK_SIZE,
+                        startIndex,
+                        endIndex,
+                        uuid
+                    }); 
+
+                    worker.onmessage = function(e) {
+
+                        // TODO: 对接收到的数据压入到result数组汇总
+                        finishedThread++;
+                        console.log(finishedThread);
+
+                        if (finishedThread === THREAD_COUNT) {
+                            // resolve(result);
+                            console.log('aaabbb');
+                            setTimeout(() => {
+                                mergeChunk(file, uuid);
+                            }, 2000);
+                            
+
+                        }
+                    }
+                }
+            })
+        }
+
+        fetch('/', {
+            // method: 'Get',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            // body: JSON.stringify({
+            //     name: 'jack',
+            //     age: 23
+            // })
+        })
+        .then(res => {
+            console.log(res )
+            return res.json()
+        })
+        .then(res => console.log(res))
+
+        function mergeChunk(file, uuid) {
+            // 所有切片上传之成功后，再请求合并文件的指令
+            console.log('上传成功');
+            return fetch('/upload/upload_chunk_end', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'  // 设置内容类型为JSON
+                },
+                body: JSON.stringify({
+                    filename: uuid, // 文件名
+                    extname: file.name.split('.').slice(-1)[0] // 文件后缀
+                })
+
+            }).then((res) => {
+                return res.json()
+                // postMessage('完成了')
+            })
+            .then(res => console.log(res));
+        }
+
+        function maxRequest(data, times) {
+            times--;
+
+            return ajax({
+                type: 'post',
+                data,
+                headers: {
+                    contentType: 'application/json'
+                },
+            })
+        }
+
+
+    </script>
+</body>
+</html>
